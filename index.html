@@ -1,11 +1,136 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+
+<style>
+  .wicked-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0.75rem;          /* distance from bottom */
+    padding: 0 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 0.65rem;       /* make it small */
+    color: #111827;
+    opacity: 0.7;             /* subtle */
+    pointer-events: none;     /* so it doesn’t block clicks if you ever add links */
+  }
+
+  .wicked-bar-header {
+    font-weight: 500;
+    margin-right: 1rem;
+  }
+
+  .wicked-bar-footer {
+    font-size: 0.6rem;
+    opacity: 0.8;
+    text-align: right;
+  }
+</style>
+
+
   <meta charset="UTF-8" />
   <title>Wicked Acquisitions</title>
+
+  <style>
+    :root {
+      --bg: #e0d8cf; /* parchment background */
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    .logo {
+      max-width: clamp(260px, 40vw, 520px);
+      height: auto;
+      display: block;
+    }
+
+    /* Tiny mode hint in the corner (optional) */
+    .hud {
+      display: none;
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      font-size: 0.75rem;
+      opacity: 0.35;
+      color: #111;
+      background: rgba(255, 255, 255, 0.4);
+      padding: 0.4rem 0.6rem;
+      border-radius: 999px;
+      backdrop-filter: blur(6px);
+      pointer-events: none;
+    }
+  </style>
 </head>
 <body>
-  <h1>Wicked Acquisitions</h1>
-  <p>Built from my phone while I’m out walking.</p>
+  <img id="logo" src="logo-morse.svg" alt="Wicked Acquisitions" class="logo" />
+
+  <div id="hud" class="hud">
+    Mode: <span id="mode-label">BREATHE</span>
+    &nbsp;·&nbsp; [B]reathe · [M]orse · [G]reen Alert
+  </div>
+
+  <script>
+    (function () {
+      const logo = document.getElementById('logo');
+      const modeLabel = document.getElementById('mode-label');
+
+      function setMode(mode) {
+        switch (mode) {
+          case 'breathe':
+            logo.src = 'logo-breathe.svg';
+            modeLabel.textContent = 'BREATHE';
+            break;
+          case 'morse':
+            logo.src = 'logo-morse.svg';
+            modeLabel.textContent = 'MORSE – "PAY UP"';
+            break;
+          case 'alert':
+            logo.src = 'logo-alert.svg';
+            modeLabel.textContent = 'GREEN ALERT';
+            break;
+        }
+      }
+
+      // default
+      setMode('morse');
+
+      window.addEventListener('keydown', (e) => {
+        const key = e.key.toLowerCase();
+        if (key === 'b') {
+          setMode('breathe');
+        } else if (key === 'm') {
+          setMode('morse');
+        } else if (key === 'g') {
+          setMode('alert');
+        }
+      });
+    })();
+  </script>
+<div class="wicked-bar">
+  <div class="wicked-bar-header">
+    This domain is currently under the management of Wicked Acquisitions Group LLC.
+  </div>
+  <div class="wicked-bar-footer">
+    Wicked Acquisitions Group LLC is an independent entity and is not affiliated with Atwater Brewery.
+  </div>
+</div>
+
 </body>
 </html>
