@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Bar Inventory – Draft</title>
+  <style>
+    :root { --pad: 14px; --radius: 14px; --border: #e6e6e6; --muted:#666; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#fafafa; color:#111; }
+    header { position: sticky; top:0; background:#fff; border-bottom:1px solid var(--border); padding: var(--pad); z-index:10; }
+    h1 { margin:0; font-size:18px; }
+    .sub { margin-top:4px; font-size:12px; color:var(--muted); display:flex; gap:10px; flex-wrap:wrap; }
+    .pill { padding:2px 8px; border:1px solid var(--border); border-radius:999px; background:#fff; }
+
+    main { padding: var(--pad); padding-bottom: 88px; } /* space for sticky footer */
+    .card { background:#fff; border:1px solid var(--border); border-radius: var(--radius); padding: var(--pad); box-shadow: 0 1px 0 rgba(0,0,0,.02); }
+
+    .row { display:flex; gap:10px; align-items:center; }
+    .row > * { flex:1; }
+    label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
+    input[type="text"], input[type="number"] {
+      width:100%; box-sizing:border-box; font-size:18px; padding:12px 12px;
+      border:1px solid var(--border); border-radius: 12px; outline:none; background:#fff;
+    }
+    input:focus { border-color:#bbb; }
+    .btn {
+      flex:0 0 auto;
+      padding:12px 14px; border-radius: 12px; border:1px solid #111;
+      background:#111; color:#fff; font-weight:700; font-size:16px;
+      touch-action: manipulation;
+    }
+    .btn.secondary { background:#fff; color:#111; border:1px solid var(--border); font-weight:600; }
+    .btn.danger { background:#fff; color:#b00020; border:1px solid #f0caca; }
+    .btn:active { transform: translateY(1px); }
+
+    .listHead { display:flex; align-items:baseline; justify-content:space-between; margin:14px 2px 8px; }
+    .listHead h2 { margin:0; font-size:14px; color:#111; }
+    .listHead .meta { font-size:12px; color:var(--muted); display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+
+    .item { display:flex; gap:10px; padding:12px; border:1px solid var(--border); border-radius: 14px; background:#fff; margin-bottom:10px; }
+    .item .info { flex: 1 1 auto; min-width: 0; }
+    .item .name { font-weight:700; font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .item .qty { margin-top:4px; color:var(--muted); font-size:13px; }
+    .item .actions { display:flex; flex-direction:column; gap:8px; flex: 0 0 auto; }
+    .mini { padding:10px 12px; font-size:14px; border-radius:12px; border:1px solid var(--border); background:#fff; font-weight:600; }
+
+    .footer {
+      position: fixed; left:0; right:0; bottom:0;
+      background: rgba(250,250,250,.92);
+      backdrop-filter: blur(8px);
+      border-top:1px solid var(--border);
+      padding: 10px var(--pad);
+      z-index: 20;
+    }
+    .footerInner { display:flex; gap:10px; }
+    .footerInner .btn { width:100%; }
+
+    dialog {
+      width: calc(100% - 24px);
+      max-width: 520px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 0;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,.2);
+    }
+    dialog::backdrop { background: rgba(0,0,0,.35); }
+    .dlgHead { padding: var(--pad); border-bottom: 1px solid var(--border); background:#fff; }
+    .dlgHead strong { font-size: 14px; }
+    .dlgBody { padding: var(--pad); background:#fff; display:flex; flex-direction:column; gap:12px; }
+    .dlgFoot { padding: var(--pad); border-top: 1px solid var(--border); background:#fff; display:flex; gap:10px; }
+    .hint { font-size:12px; color:var(--muted); line-height:1.35; }
+    .toast {
+      position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: 92px; background:#111; color:#fff;
+      padding: 10px 12px; border-radius: 999px; font-size: 13px;
+      opacity: 0; pointer-events:none; transition: opacity .15s ease;
+    }
+    .toast.show { opacity: 0.95; }
+  </style>
+</head>
+
+<body>
+  <header>
+<script>
+  async function doLogin() {
+    const username = prompt("Username (zak or boss):");
+    const password = prompt("Password:");
+    if (!username || !password) return;
+
+    const res = await fetch("/api/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!data.ok) { alert(data.error || "Login failed"); return; }
+
+    localStorage.setItem("inv_token", data.token);
+    localStorage.setItem("inv_role", data.role);
+    updateAuthUI();
+    applyRoleLock();
+    // after login, load from server
+    if (typeof refreshFromServer === "function") await refreshFromServer();
+  }
+
+  function logout() {
+    localStorage.removeItem("inv_token");
+    localStorage.removeItem("inv_role");
+    updateAuthUI();
+  }
+
+  function updateAuthUI() {
+    const role = localStorage.getItem("inv_role");
+    const hasToken = !!localStorage.getItem("inv_token");
+    document.getElementById("loginBtn").style.display = hasToken ? "none" : "";
+    document.getElementById("logoutBtn").style.display = hasToken ? "" : "none";
+    document.getElementById("whoami").textContent = hasToken ? `Logged in: ${role}` : "Not logged in";
+  }
+
+  document.getElementById("loginBtn").addEventListener("click", doLogin);
+  document.getElementById("logoutBtn").addEventListener("click", logout);
+  updateAuthUI();
+</script>
+
+<script>
+  function isBoss() {
+    return localStorage.getItem("inv_role") === "boss";
+  }
+
+  function applyRoleLock() {
+    // Disable input controls for boss
+    const disabled = isBoss();
+    // safer: just disable the known inputs/buttons you already have
+    document.querySelectorAll("input, button").forEach(el => {
+      if (el.id === "loginBtn" || el.id === "logoutBtn") return;
+      // keep export enabled for boss
+      if ((el.textContent || "").trim().toLowerCase().includes("export")) return;
+      if (disabled) el.setAttribute("disabled", "disabled");
+      else el.removeAttribute("disabled");
+    });
+  }
+</script>
+
+<script>
+  window.addEventListener("DOMContentLoaded", async () => {
+    try {
+      applyRoleLock();
+
+      // only call refreshFromServer if it exists
+      if (typeof refreshFromServer === "function" && localStorage.getItem("inv_token")) {
+        await refreshFromServer();
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+  });
+</script>
+
+    <h1>Bar Inventory (Draft)</h1>
+    <div class="sub">
+      <span class="pill" id="countPill">0 items</span>
+      <span class="pill" id="savedPill">Saved</span>
+      <span class="pill" id="modePill">Tenths: 1.3 = 1 + 0.3</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- The “first line for anything new” -->
+    <div class="card" aria-label="Add new inventory line">
+      <div class="row" style="align-items:flex-end; flex-wrap:wrap;">
+        <div style="flex: 2 1 220px;">
+          <label for="nameInput">Liquor</label>
+          <input id="nameInput" type="text" inputmode="text" autocomplete="off" autocapitalize="words"
+                 placeholder="Type: Tito's, Jameson, Casamigos..." />
+        </div>
+
+        <div style="flex: 1 1 120px;">
+          <label for="qtyInput">Qty (tenths)</label>
+          <input id="qtyInput" type="number" inputmode="decimal" step="0.1" min="0" placeholder="0.0" />
+        </div>
+
+        <button class="btn" id="addBtn" style="flex: 1 1 120px;" type="button">Add</button>
+      </div>
+
+      <div class="hint" style="margin-top:10px;">
+        Tip: hit <b>Enter</b> in either field to add. Quantities are stored as decimals (tenths).
+      </div>
+    </div>
+
+    <div class="listHead">
+      <h2>List</h2>
+      <div class="meta">
+        <span id="lastUpdated">—</span>
+        <button class="mini" id="sortBtn" type="button" title="Sort list">Sort A→Z</button>
+      </div>
+    </div>
+
+    <div id="list"></div>
+  </main>
+
+  <div class="footer">
+    <div class="footerInner" style="flex-wrap:wrap;">
+  <button class="btn" id="syncBtn" type="button">Sync</button>
+  <button class="btn secondary" id="exportBtn" type="button">Export CSV</button>
+  <button class="btn danger" id="clearBtn" type="button">Clear All</button>
+</div>
+  </div>
+
+  <!-- Edit dialog -->
+  <dialog id="editDlg">
+    <div class="dlgHead"><strong>Edit line</strong></div>
+    <div class="dlgBody">
+      <div>
+        <label for="editName">Liquor</label>
+        <input id="editName" type="text" />
+      </div>
+      <div>
+        <label for="editQty">Qty (tenths)</label>
+        <input id="editQty" type="number" inputmode="decimal" step="0.1" min="0" />
+      </div>
+      <div class="hint">Use tenths (e.g., <b>1.3</b> = one bottle plus 0.3 of another).</div>
+    </div>
+    <div class="dlgFoot">
+      <button class="btn secondary" id="cancelEdit" type="button">Cancel</button>
+      <button class="btn" id="saveEdit" type="button">Save</button>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast">Saved</div>
+
+  <script>
+    // Simple local-only draft. Later: wire these same actions to your Worker API.
+    const STORAGE_KEY = "bar_inventory_draft_v1";
+
+    const el = (id) => document.getElementById(id);
+    const nameInput = el("nameInput");
+    const qtyInput  = el("qtyInput");
+    const addBtn    = el("addBtn");
+    const listEl    = el("list");
+    const countPill = el("countPill");
+    const savedPill = el("savedPill");
+    const lastUpdated = el("lastUpdated");
+    const sortBtn   = el("sortBtn");
+    const exportBtn = el("exportBtn");
+    const clearBtn  = el("clearBtn");
+    const toast     = el("toast");
+
+    const editDlg   = el("editDlg");
+    const editName  = el("editName");
+    const editQty   = el("editQty");
+    const cancelEdit= el("cancelEdit");
+    const saveEdit  = el("saveEdit");
+
+    let items = load();
+    let sortAZ = false;
+    let editingId = null;
+
+    function uid() {
+      return Math.random().toString(16).slice(2) + Date.now().toString(16);
+    }
+
+    function roundToTenth(n) {
+      return Math.round((n + Number.EPSILON) * 10) / 10;
+    }
+
+    function parseQty(v) {
+      if (v === "" || v === null || v === undefined) return null;
+      const n = Number(v);
+      if (!Number.isFinite(n) || n < 0) return null;
+      return roundToTenth(n);
+    }
+
+    function save() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ items, updatedAt: Date.now() }));
+      savedPill.textContent = "Saved";
+      showToast("Saved");
+      renderMeta();
+    }
+
+    function load() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed.items) ? parsed.items : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function getUpdatedAt() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return typeof parsed.updatedAt === "number" ? parsed.updatedAt : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function renderMeta() {
+      countPill.textContent = `${items.length} item${items.length === 1 ? "" : "s"}`;
+      const t = getUpdatedAt();
+      if (!t) { lastUpdated.textContent = "Not saved yet"; return; }
+      const d = new Date(t);
+      lastUpdated.textContent = `Last saved: ${d.toLocaleString([], { month:"short", day:"numeric", hour:"numeric", minute:"2-digit" })}`;
+    }
+
+    function render() {
+      renderMeta();
+      let display = [...items];
+
+      if (sortAZ) {
+        display.sort((a,b) => a.name.localeCompare(b.name));
+        sortBtn.textContent = "Sort (entered)";
+      } else {
+        // keep entry order
+        sortBtn.textContent = "Sort A→Z";
+      }
+
+      listEl.innerHTML = "";
+      if (display.length === 0) {
+        listEl.innerHTML = `<div class="hint" style="padding:8px 2px;">Nothing yet. Type a liquor and qty up top.</div>`;
+        return;
+      }
+
+      for (const it of display) {
+        const row = document.createElement("div");
+        row.className = "item";
+        row.dataset.id = it.id;
+
+        const info = document.createElement("div");
+        info.className = "info";
+
+        const name = document.createElement("div");
+        name.className = "name";
+        name.textContent = it.name;
+
+        const qty = document.createElement("div");
+        qty.className = "qty";
+        qty.textContent = `Qty: ${it.qty.toFixed(1)}  •  Entered: ${new Date(it.createdAt).toLocaleString([], { hour:"numeric", minute:"2-digit" })}`;
+
+        info.appendChild(name);
+        info.appendChild(qty);
+
+        const actions = document.createElement("div");
+        actions.className = "actions";
+
+        const editBtn = document.createElement("button");
+        editBtn.className = "mini";
+        editBtn.type = "button";
+        editBtn.textContent = "Edit";
+        editBtn.addEventListener("click", () => openEdit(it.id));
+
+        const delBtn = document.createElement("button");
+        delBtn.className = "mini";
+        delBtn.type = "button";
+        delBtn.textContent = "Delete";
+        delBtn.addEventListener("click", () => remove(it.id));
+
+        actions.appendChild(editBtn);
+        actions.appendChild(delBtn);
+
+        row.appendChild(info);
+        row.appendChild(actions);
+        listEl.appendChild(row);
+      }
+    }
+
+    function add() {
+      const name = (nameInput.value || "").trim();
+      const qty = parseQty(qtyInput.value);
+
+      if (!name) { showToast("Type a liquor name"); nameInput.focus(); return; }
+      if (qty === null) { showToast("Enter a valid qty (e.g., 1.3)"); qtyInput.focus(); return; }
+
+      // If the same name already exists, we’ll add a NEW line for now (your request).
+      // Later we can add a toggle: "merge duplicates".
+      items.unshift({ id: uid(), name, qty, createdAt: Date.now() });
+      savedPill.textContent = "Saving…";
+      save();
+
+      // reset only qty, keep name for speed if you're entering variants
+      qtyInput.value = "";
+      qtyInput.focus();
+      render();
+    }
+
+    function remove(id) {
+      const it = items.find(x => x.id === id);
+      if (!it) return;
+      if (!confirm(`Delete "${it.name}" (${it.qty.toFixed(1)})?`)) return;
+      items = items.filter(x => x.id !== id);
+      savedPill.textContent = "Saving…";
+      save();
+      render();
+    }
+
+    function openEdit(id) {
+      const it = items.find(x => x.id === id);
+      if (!it) return;
+      editingId = id;
+      editName.value = it.name;
+      editQty.value = it.qty.toFixed(1);
+      editDlg.showModal();
+      setTimeout(() => editQty.focus(), 50);
+    }
+
+    function commitEdit() {
+      if (!editingId) return;
+      const it = items.find(x => x.id === editingId);
+      if (!it) return;
+
+      const name = (editName.value || "").trim();
+      const qty = parseQty(editQty.value);
+
+      if (!name) { showToast("Name can't be blank"); editName.focus(); return; }
+      if (qty === null) { showToast("Enter a valid qty"); editQty.focus(); return; }
+
+      it.name = name;
+      it.qty = qty;
+
+      savedPill.textContent = "Saving…";
+      save();
+      editDlg.close();
+      editingId = null;
+      render();
+    }
+
+    function exportCSV() {
+      if (items.length === 0) { showToast("Nothing to export"); return; }
+      const rows = [
+        ["Liquor","Qty","Entered At"],
+        ...items.map(it => [it.name, it.qty.toFixed(1), new Date(it.createdAt).toISOString()])
+      ];
+      const csv = rows.map(r => r.map(cell => {
+        const s = String(cell ?? "");
+        return /[",\n]/.test(s) ? `"${s.replaceAll('"','""')}"` : s;
+      }).join(",")).join("\n");
+
+      const blob = new Blob([csv], { type:"text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `inventory-${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 250);
+    }
+
+    function clearAll() {
+      if (items.length === 0) return;
+      if (!confirm("Clear the entire list?")) return;
+      items = [];
+      savedPill.textContent = "Saving…";
+      save();
+      render();
+    }
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add("show");
+      setTimeout(() => toast.classList.remove("show"), 900);
+    }
+
+    // Events
+    addBtn.addEventListener("click", add);
+
+    nameInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); qtyInput.focus(); }
+    });
+    qtyInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); add(); }
+    });
+
+    sortBtn.addEventListener("click", () => { sortAZ = !sortAZ; render(); });
+
+    exportBtn.addEventListener("click", exportCSV);
+    clearBtn.addEventListener("click", clearAll);
+
+    cancelEdit.addEventListener("click", () => { editDlg.close(); editingId = null; });
+    saveEdit.addEventListener("click", commitEdit);
+    editDlg.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); commitEdit(); }
+      if (e.key === "Escape") { editingId = null; }
+    });
+
+    // Initial render
+    render();
+  </script>
+<script>
+  async function login(username, password) {
+    const res = await fetch("/api/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || "Login failed");
+    localStorage.setItem("inv_token", data.token);
+    localStorage.setItem("inv_role", data.role);
+    return data;
+  }
+
+  async function api(path, opts = {}) {
+    const token = localStorage.getItem("inv_token");
+    const headers = { ...(opts.headers || {}) };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    return fetch(path, { ...opts, headers });
+  }
+</script>
+</body>
+</html>

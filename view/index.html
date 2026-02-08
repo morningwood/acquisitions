@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Detroiter Inventory — View</title>
+  <style>
+    :root{
+      --bg:#0c0f14;
+      --panel:#121826;
+      --text:#e8eefc;
+      --muted:#9aa7bf;
+      --line:#25304a;
+      --good:#39d98a;
+      --bad:#ff6b6b;
+      --warn:#ffd166;
+      --btn:#1f2a44;
+      --btn2:#22314f;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 14px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: var(--sans);
+      background: radial-gradient(1200px 700px at 20% 0%, #121b2e 0%, var(--bg) 55%);
+      color: var(--text);
+    }
+    header{
+      position: sticky;
+      top:0;
+      z-index: 5;
+      backdrop-filter: blur(10px);
+      background: rgba(12,15,20,.75);
+      border-bottom: 1px solid rgba(37,48,74,.65);
+    }
+    .wrap{
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 14px 16px;
+    }
+    .row{ display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+    h1{
+      font-size: 18px;
+      margin:0;
+      letter-spacing:.2px;
+      font-weight: 700;
+    }
+    .sub{
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      border: 1px solid rgba(37,48,74,.9);
+      background: rgba(18,24,38,.8);
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .dot{ width:8px; height:8px; border-radius:999px; background: var(--warn); box-shadow: 0 0 0 4px rgba(255,209,102,.08); }
+    .dot.ok{ background: var(--good); box-shadow: 0 0 0 4px rgba(57,217,138,.08); }
+    .dot.bad{ background: var(--bad); box-shadow: 0 0 0 4px rgba(255,107,107,.08); }
+
+    main .wrap{ padding-top: 18px; padding-bottom: 28px; }
+
+    .controls{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:space-between;
+      margin-bottom: 12px;
+    }
+    .left, .right{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    input[type="search"]{
+      width: min(420px, 90vw);
+      background: rgba(18,24,38,.8);
+      border: 1px solid rgba(37,48,74,.95);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      outline: none;
+    }
+    input[type="search"]::placeholder{ color: rgba(154,167,191,.75); }
+    select, button{
+      background: var(--btn);
+      border: 1px solid rgba(37,48,74,.95);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor: pointer;
+    }
+    button.secondary{ background: var(--btn2); color: var(--muted); }
+    button.danger{ background: rgba(255,107,107,.12); border-color: rgba(255,107,107,.35); }
+    button:disabled{ opacity:.5; cursor:not-allowed; }
+
+    .card{
+      background: rgba(18,24,38,.85);
+      border: 1px solid rgba(37,48,74,.85);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+
+    table{
+      width:100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th, td{
+      padding: 12px 12px;
+      border-bottom: 1px solid rgba(37,48,74,.7);
+      vertical-align: middle;
+    }
+    th{
+      text-align:left;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing:.4px;
+      text-transform: uppercase;
+      position: sticky;
+      top: 66px;
+      background: rgba(18,24,38,.92);
+      z-index: 2;
+    }
+    td.qty{
+      font-family: var(--mono);
+      text-align:right;
+      width: 110px;
+    }
+    .muted{ color: var(--muted); }
+    .empty{
+      padding: 18px 14px;
+      color: var(--muted);
+      text-align:center;
+    }
+    .footer{
+      margin-top: 10px;
+      display:flex;
+      justify-content:space-between;
+      gap: 10px;
+      flex-wrap:wrap;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .kbd{
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 2px 6px;
+      border-radius: 8px;
+      border: 1px solid rgba(37,48,74,.9);
+      background: rgba(0,0,0,.25);
+      color: var(--muted);
+    }
+
+    .modalBack{
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.6);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding: 18px;
+      z-index: 10;
+    }
+    .modal{
+      width: min(460px, 100%);
+      background: rgba(18,24,38,.98);
+      border: 1px solid rgba(37,48,74,.95);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+    .modal h2{
+      margin: 0 0 10px 0;
+      font-size: 16px;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    .field label{
+      display:block;
+      font-size: 12px;
+      color: var(--muted);
+      margin: 0 0 6px 2px;
+    }
+    .field input{
+      width:100%;
+      background: rgba(12,15,20,.6);
+      border: 1px solid rgba(37,48,74,.95);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      outline:none;
+    }
+    .msg{
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      min-height: 16px;
+    }
+    .msg.bad{ color: var(--bad); }
+  </style>
+</head>
+
+<body>
+<header>
+  <div class="wrap">
+    <div class="row">
+      <div>
+        <h1>Detroiter Inventory — View</h1>
+        <div class="sub">Read-only. Pulls from the shared database (D1) via the Worker API.</div>
+      </div>
+      <div class="row" style="justify-content:flex-end;">
+        <span class="pill" id="statusPill">
+          <span class="dot" id="statusDot"></span>
+          <span id="statusText">Not connected</span>
+        </span>
+        <button class="secondary" id="loginOpenBtn" type="button">Login</button>
+        <button class="danger" id="logoutBtn" type="button" style="display:none;">Logout</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+
+    <div class="controls">
+      <div class="left">
+        <input id="q" type="search" placeholder="Search (e.g., Jameson, Tito's) …" />
+        <select id="sort">
+          <option value="name">Sort: Name</option>
+          <option value="qty_desc">Sort: Qty (high → low)</option>
+          <option value="qty_asc">Sort: Qty (low → high)</option>
+        </select>
+      </div>
+
+      <div class="right">
+        <button id="refreshBtn" type="button">Refresh</button>
+        <button id="exportBtn" class="secondary" type="button">Export CSV</button>
+        <span class="pill"><span class="muted">Auto</span> <span class="kbd">30s</span></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Liquor</th>
+            <th style="text-align:right;width:110px;">Qty</th>
+            <th style="width:210px;">Updated</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td class="empty" colspan="3">Login, then hit Refresh.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="footer">
+      <div>
+        <span id="meta">0 items</span>
+        <span class="muted"> · </span>
+        <span class="muted">Tip:</span> <span class="muted">search is instant; refresh pulls from server.</span>
+      </div>
+      <div class="muted">
+        Base: <span class="kbd" id="baseTag">/</span>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<div class="modalBack" id="modalBack" aria-hidden="true">
+  <div class="modal">
+    <div class="row" style="margin-bottom:8px;">
+      <h2 style="margin:0;">Login</h2>
+      <button class="secondary" id="closeModalBtn" type="button">Close</button>
+    </div>
+
+    <div class="grid">
+      <div class="field">
+        <label for="user">Username</label>
+        <input id="user" autocomplete="username" />
+      </div>
+      <div class="field">
+        <label for="pass">Password</label>
+        <input id="pass" type="password" autocomplete="current-password" />
+      </div>
+      <div class="row" style="justify-content:flex-end;">
+        <button id="loginBtn" type="button">Login</button>
+      </div>
+      <div class="msg" id="loginMsg"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const BASE = location.pathname.startsWith("/detroiter") ? "/detroiter" : "";
+  document.getElementById("baseTag").textContent = BASE || "/";
+
+  const els = {
+    statusDot: document.getElementById("statusDot"),
+    statusText: document.getElementById("statusText"),
+    loginOpenBtn: document.getElementById("loginOpenBtn"),
+    logoutBtn: document.getElementById("logoutBtn"),
+    refreshBtn: document.getElementById("refreshBtn"),
+    exportBtn: document.getElementById("exportBtn"),
+    q: document.getElementById("q"),
+    sort: document.getElementById("sort"),
+    tbody: document.getElementById("tbody"),
+    meta: document.getElementById("meta"),
+    modalBack: document.getElementById("modalBack"),
+    closeModalBtn: document.getElementById("closeModalBtn"),
+    loginBtn: document.getElementById("loginBtn"),
+    user: document.getElementById("user"),
+    pass: document.getElementById("pass"),
+    loginMsg: document.getElementById("loginMsg"),
+  };
+
+  let items = [];
+
+  function setStatus(kind, text) {
+    els.statusDot.classList.remove("ok","bad");
+    if (kind === "ok") els.statusDot.classList.add("ok");
+    if (kind === "bad") els.statusDot.classList.add("bad");
+    els.statusText.textContent = text;
+  }
+
+  function token() { return localStorage.getItem("inv_token"); }
+  function role() { return localStorage.getItem("inv_role"); }
+
+  async function api(path, opts = {}) {
+    const headers = { ...(opts.headers || {}) };
+    const t = token();
+    if (t) headers["Authorization"] = `Bearer ${t}`;
+    return fetch(`${BASE}${path}`, { ...opts, headers });
+  }
+
+  function showModal(show) {
+    els.modalBack.style.display = show ? "flex" : "none";
+    els.modalBack.setAttribute("aria-hidden", show ? "false" : "true");
+    els.loginMsg.textContent = "";
+    els.loginMsg.classList.remove("bad");
+    if (show) {
+      els.user.value = role() || "boss";
+      els.pass.value = "";
+      setTimeout(() => els.user.focus(), 30);
+    }
+  }
+
+  async function doLogin() {
+    els.loginMsg.textContent = "Logging in…";
+    els.loginMsg.classList.remove("bad");
+
+    const username = (els.user.value || "").trim();
+    const password = els.pass.value || "";
+
+    try {
+      const res = await fetch(`${BASE}/api/login`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Login failed");
+
+      localStorage.setItem("inv_token", data.token);
+      localStorage.setItem("inv_role", data.role);
+
+      showModal(false);
+      updateAuthUI();
+      await refresh();
+    } catch (e) {
+      els.loginMsg.textContent = e.message || "Login failed";
+      els.loginMsg.classList.add("bad");
+      setStatus("bad", "Login failed");
+    }
+  }
+
+  function doLogout() {
+    localStorage.removeItem("inv_token");
+    localStorage.removeItem("inv_role");
+    items = [];
+    render();
+    updateAuthUI();
+    setStatus("bad", "Logged out");
+  }
+
+  function updateAuthUI() {
+    const authed = !!token();
+    els.loginOpenBtn.style.display = authed ? "none" : "";
+    els.logoutBtn.style.display = authed ? "" : "none";
+    if (authed) setStatus("ok", `Connected (${role() || "?"})`);
+    else setStatus("bad", "Not connected");
+  }
+
+  function fmtTime(ms) {
+    if (!ms) return "—";
+    try { return new Date(ms).toLocaleString(); }
+    catch { return "—"; }
+  }
+
+  function normalizeList(list) {
+    return (Array.isArray(list) ? list : []).map(it => ({
+      id: String(it.id ?? ""),
+      name: String(it.name ?? "").trim(),
+      qty: Number(it.qty ?? 0),
+      updatedAt: Number(it.updatedAt ?? it.updated_at ?? 0),
+      createdAt: Number(it.createdAt ?? it.created_at ?? 0),
+    })).filter(it => it.name);
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[c]));
+  }
+
+  function render() {
+    const q = (els.q.value || "").trim().toLowerCase();
+    const sort = els.sort.value;
+
+    let view = items.slice();
+    if (q) view = view.filter(it => it.name.toLowerCase().includes(q));
+
+    if (sort === "name") view.sort((a,b) => a.name.localeCompare(b.name));
+    if (sort === "qty_desc") view.sort((a,b) => (b.qty - a.qty) || a.name.localeCompare(b.name));
+    if (sort === "qty_asc") view.sort((a,b) => (a.qty - b.qty) || a.name.localeCompare(b.name));
+
+    els.meta.textContent = `${view.length} item${view.length===1?"":"s"} (of ${items.length})`;
+
+    if (!token()) {
+      els.tbody.innerHTML = `<tr><td class="empty" colspan="3">Login, then hit Refresh.</td></tr>`;
+      return;
+    }
+
+    if (!view.length) {
+      els.tbody.innerHTML = `<tr><td class="empty" colspan="3">No matches.</td></tr>`;
+      return;
+    }
+
+    els.tbody.innerHTML = view.map(it => {
+      const when = it.updatedAt || it.createdAt || 0;
+      return `<tr>
+        <td>${escapeHtml(it.name)}</td>
+        <td class="qty">${Number.isFinite(it.qty) ? it.qty.toFixed(1) : "0.0"}</td>
+        <td class="muted">${escapeHtml(fmtTime(when))}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  async function refresh() {
+    if (!token()) { updateAuthUI(); render(); return; }
+
+    els.refreshBtn.disabled = true;
+    try {
+      const res = await api("/api/items");
+      if (res.status === 401) {
+        doLogout();
+        showModal(true);
+        return;
+      }
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Failed to load");
+
+      items = normalizeList(data.items);
+      setStatus("ok", `Connected (${role() || "?"}) • refreshed`);
+      render();
+    } catch (e) {
+      setStatus("bad", `Error: ${e.message || "fetch failed"}`);
+    } finally {
+      els.refreshBtn.disabled = false;
+    }
+  }
+
+  function exportCsv() {
+    if (!token()) { showModal(true); return; }
+    window.open(`${BASE}/api/export.csv`, "_blank");
+  }
+
+  els.loginOpenBtn.addEventListener("click", () => showModal(true));
+  els.closeModalBtn.addEventListener("click", () => showModal(false));
+  els.modalBack.addEventListener("click", (e) => { if (e.target === els.modalBack) showModal(false); });
+  els.loginBtn.addEventListener("click", doLogin);
+  els.logoutBtn.addEventListener("click", doLogout);
+  els.refreshBtn.addEventListener("click", refresh);
+  els.exportBtn.addEventListener("click", exportCsv);
+  els.q.addEventListener("input", render);
+  els.sort.addEventListener("change", render);
+
+  setInterval(() => {
+    if (document.visibilityState !== "visible") return;
+    if (!token()) return;
+    refresh();
+  }, 30000);
+
+  updateAuthUI();
+  render();
+  if (token()) refresh();
+</script>
+</body>
+</html>
